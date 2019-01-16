@@ -34,8 +34,14 @@ def encrypt_message(K, message):
     """ Encrypt a message under a key K """
 
     plaintext = message.encode("utf8")
-    
-    ## YOUR CODE HERE
+
+    #init
+    aes = Cipher("aes-128-gcm")
+    iv = urandom(16)
+
+    #encrypt
+    ciphertext, tag = aes.quick_gcm_enc(K,iv,plaintext, assoc="tomos",tagl=16)
+
 
     return (iv, ciphertext, tag)
 
@@ -44,7 +50,9 @@ def decrypt_message(K, iv, ciphertext, tag):
 
         In case the decryption fails, throw an exception.
     """
-    ## YOUR CODE HERE
+    aes = Cipher("aes-128-gcm")
+    plain = aes.quick_gcm_dec(K,iv,ciphertext,tag,assoc="tomos")
+
 
     return plain.encode("utf8")
 
@@ -60,35 +68,41 @@ def decrypt_message(K, iv, ciphertext, tag):
 
 from petlib.bn import Bn
 
-
 def is_point_on_curve(a, b, p, x, y):
     """
     Check that a point (x, y) is on the curve defined by a,b and prime p.
     Reminder: an Elliptic Curve on a prime field p is defined as:
-
               y^2 = x^3 + ax + b (mod p)
                   (Weierstrass form)
-
     Return True if point (x,y) is on curve, otherwise False.
     By convention a (None, None) point represents "infinity".
     """
+
+    #Bn is big number class. First, check each input is in Bn.
     assert isinstance(a, Bn)
     assert isinstance(b, Bn)
     assert isinstance(p, Bn) and p > 0
     assert (isinstance(x, Bn) and isinstance(y, Bn)) \
            or (x == None and y == None)
 
-    if x == None and y == None:
+    if x is None and y is None:
         return True
 
-    lhs = (y * y) % p
-    rhs = (x*x*x + a*x + b) % p
+    lhs = (y.int_mul(y)).mod(p)
+    rhs = ((x.pow(3).int_add(a.int_mul(x))).int_add(b)).mod(p)
     on_curve = (lhs == rhs)
 
     return on_curve
 
 
 def point_add(a, b, p, x0, y0, x1, y1):
+
+    assert isinstance(a, Bn)
+    assert isinstance(b, Bn)
+    assert isinstance(p, Bn) and p > 0
+    assert (isinstance(x0, Bn) and isinstance(y0, Bn))
+    assert (isinstance(x1, Bn) and isinstance(y1, Bn))
+
     """Define the "addition" operation for 2 EC Points.
 
     Reminder: (xr, yr) = (xq, yq) + (xp, yp)
@@ -100,10 +114,31 @@ def point_add(a, b, p, x0, y0, x1, y1):
     Return the point resulting from the addition. Raises an Exception if the points are equal.
     """
 
-    # ADD YOUR CODE BELOW
-    xr, yr = None, None
     
-    return (xr, yr)
+    lam = ((y1.int_sub(y0)).int_mul((x1.int_sub(x0)).pow(-1))).mod(p)
+    assert isinstance(lam, Bn)
+    xr = ((lam.pow(2).int_sub(x0)).int_sub(x1)).mod(p)
+    assert isinstance(xr, Bn)
+    yr = ((lam.int_mul(x0.int_sub(xr))).int_sub(y0)).mod(p)
+    assert isinstance(yr, Bn)
+    
+    if xr is None and yr is None:
+        return "x or y None"
+    
+    """
+    lam = ((y1.mod_sub(y0,p)).mod_mul(((x1.mod_sub(x0,p)).mod_pow(-1,p)),p)).mod(p)
+    xr = (((lam.mod_pow(2,p)).mod_sub(x0,p)).mod_sub(x1,p)).mod(p)
+    yr = ((lam.mod_mul((x0.mod_sub(xr,p)),p)).mod_sub(y0,p)).mod(p)
+    """
+
+    """
+    lam = ((y1 - y0) * (x1 - x0)**(-1)).mod(p)
+    xr  = (lam**2 - x0 - x1).mod(p)
+    yr  = (lam * (x0 - xr) - y0).mod(p)
+    """
+
+    return (lam, xr, yr)
+
 
 def point_double(a, b, p, x, y):
     """Define "doubling" an EC point.
@@ -196,15 +231,24 @@ def ecdsa_sign(G, priv_sign, message):
     """ Sign the SHA256 digest of the message using ECDSA and return a signature """
     plaintext =  message.encode("utf8")
 
-    ## YOUR CODE HERE
+    # Hash message
+    digest = sha256(message).digest()
+    
+    sig = do_ecdsa_sign(G, priv_sign, digest)
 
     return sig
+
+group = ecdsa_key_gen()
+ecdsa_sign(group[0], group[1], "hello")
 
 def ecdsa_verify(G, pub_verify, message, sig):
     """ Verify the ECDSA signature on the message """
     plaintext =  message.encode("utf8")
 
-    ## YOUR CODE HERE
+    # hash
+    digest = sha256(message).digest()
+
+    res = do_ecdsa_verify(G, pub_verify, sig, digest)
 
     return res
 
@@ -233,15 +277,32 @@ def dh_encrypt(pub, message, aliceSig = None):
         - Optionally: sign the message with Alice's key.
     """
     
-    ## YOUR CODE HERE
+    G, priv_dec, pub_enc = dh_get_key()
+    shared_key = pub.pt_mul(priv_dec)
+    #print(G.check_point(shared_key))
+
+    aes = Cipher("AES-128-CTR")
+    iv = urandom(16)
+
+    enc = aes.enc(shared_key, iv)
+    ciphertext = enc.update(message)
+    ciphertext += enc.finalize()
+
+    print(ciphertext)
+
+    #dh_decrypt(priv_dec, ciphertext, tag, aliceVer=None)
+
     pass
+
+G, priv_dec, pub_enc = dh_get_key()
+dh_encrypt(pub_enc, "hello")
 
 def dh_decrypt(priv, ciphertext, aliceVer = None):
     """ Decrypt a received message encrypted using your public key, 
     of which the private key is provided. Optionally verify 
     the message came from Alice using her verification key."""
     
-    ## YOUR CODE HERE
+    print(plaintext)
     pass
 
 ## NOTE: populate those (or more) tests
@@ -270,3 +331,6 @@ def test_fails():
 
 def time_scalar_mul():
     pass
+
+#is_point_on_curve(Bn(2), Bn(1), Bn(7), None, None)
+#is_point_on_curve(Bn(2), Bn(1), Bn(7), Bn(1), Bn(1))

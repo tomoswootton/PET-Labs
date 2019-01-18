@@ -78,15 +78,16 @@ def is_point_on_curve(a, b, p, x, y):
     By convention a (None, None) point represents "infinity".
     """
 
+    if x is None or y is None:
+        return True
+
     #Bn is big number class. First, check each input is in Bn.
     assert isinstance(a, Bn)
     assert isinstance(b, Bn)
     assert isinstance(p, Bn) and p > 0
     assert (isinstance(x, Bn) and isinstance(y, Bn)) \
-           or (x == None and y == None)
-
-    if x is None and y is None:
-        return True
+           or (x is None and y is None)
+    
 
     lhs = (y.int_mul(y)).mod(p)
     rhs = ((x.pow(3).int_add(a.int_mul(x))).int_add(b)).mod(p)
@@ -96,14 +97,9 @@ def is_point_on_curve(a, b, p, x, y):
 
 
 def point_add(a, b, p, x0, y0, x1, y1):
-
-    assert isinstance(a, Bn)
-    assert isinstance(b, Bn)
-    assert isinstance(p, Bn) and p > 0
-    assert (isinstance(x0, Bn) and isinstance(y0, Bn))
-    assert (isinstance(x1, Bn) and isinstance(y1, Bn))
-
-    """Define the "addition" operation for 2 EC Points.
+    
+    """
+    Define the "addition" operation for 2 EC Points.
 
     Reminder: (xr, yr) = (xq, yq) + (xp, yp)
     is defined as:
@@ -113,31 +109,29 @@ def point_add(a, b, p, x0, y0, x1, y1):
 
     Return the point resulting from the addition. Raises an Exception if the points are equal.
     """
+    xr, yr = None, None
+   
+    if x0 is None or y0 is None:
+        return (x1,y1)
 
-    
-    lam = ((y1.int_sub(y0)).int_mul((x1.int_sub(x0)).pow(-1))).mod(p)
-    assert isinstance(lam, Bn)
-    xr = ((lam.pow(2).int_sub(x0)).int_sub(x1)).mod(p)
-    assert isinstance(xr, Bn)
-    yr = ((lam.int_mul(x0.int_sub(xr))).int_sub(y0)).mod(p)
-    assert isinstance(yr, Bn)
-    
-    if xr is None and yr is None:
-        return "x or y None"
-    
-    """
-    lam = ((y1.mod_sub(y0,p)).mod_mul(((x1.mod_sub(x0,p)).mod_pow(-1,p)),p)).mod(p)
-    xr = (((lam.mod_pow(2,p)).mod_sub(x0,p)).mod_sub(x1,p)).mod(p)
-    yr = ((lam.mod_mul((x0.mod_sub(xr,p)),p)).mod_sub(y0,p)).mod(p)
-    """
+    if x1 is None or y1 is None:
+        return (x0,y0)
 
-    """
-    lam = ((y1 - y0) * (x1 - x0)**(-1)).mod(p)
-    xr  = (lam**2 - x0 - x1).mod(p)
-    yr  = (lam * (x0 - xr) - y0).mod(p)
-    """
+    if x0 == x1 and y0 == (y1.int_neg()).mod(p):
+        return (None,None)
 
-    return (lam, xr, yr)
+    if x0 == x1 or y0 == y1:
+        raise Exception("EC Points must not be equal")
+
+    Y = y1.int_sub(y0)
+    X = (x1.int_sub(x0)).mod_inverse(p)
+    lam = (Y.mod_mul(X, p))
+
+    xr = ((lam.pow(2)).int_sub(x0)).mod_sub(x1, p)
+    X2 = x0.int_sub(xr)
+    yr = (lam.int_mul(X2)).mod_sub(y0, p)
+
+    return (xr, yr)
 
 
 def point_double(a, b, p, x, y):
@@ -152,8 +146,18 @@ def point_double(a, b, p, x, y):
     Returns the point representing the double of the input (x, y).
     """  
 
-    # ADD YOUR CODE BELOW
     xr, yr = None, None
+
+    if x is None or y is None:
+        return (None, None)
+
+    Z = (((x.pow(2)).int_mul(3)) + a)
+    W = (y.int_mul(2)).mod_inverse(p)
+    lam = Z.mod_mul(W, p)
+
+    xr = (lam.pow(2)).mod_sub((x.int_mul(2)), p)
+    X3 = x.int_sub(xr)
+    yr = (lam.int_mul(X3)).mod_sub(y, p)
 
     return xr, yr
 
@@ -175,7 +179,9 @@ def point_scalar_multiplication_double_and_add(a, b, p, x, y, scalar):
     P = (x, y)
 
     for i in range(scalar.num_bits()):
-        pass ## ADD YOUR CODE HERE
+        if scalar.is_bit_set(i):
+            Q = point_add(a,b,p,Q[0],Q[1],P[0],P[1]) 
+        P = point_double(a,b,p,P[0],P[1])
 
     return Q
 
@@ -201,8 +207,12 @@ def point_scalar_multiplication_montgomerry_ladder(a, b, p, x, y, scalar):
     R1 = (x, y)
 
     for i in reversed(range(0,scalar.num_bits())):
-        pass ## ADD YOUR CODE HERE
-
+        if scalar.is_bit_set(i):
+            R0 = point_add(a,b,p,R0[0],R0[1],R1[0],R1[1]) 
+            R1 = point_double(a,b,p,R1[0],R1[1])
+        else:
+            R1 = point_add(a,b,p,R0[0],R0[1],R1[0],R1[1]) 
+            R0 = point_double(a,b,p,R0[0],R0[1])
     return R0
 
 
@@ -267,8 +277,8 @@ def dh_get_key():
     pub_enc = priv_dec * G.generator()
     return (G, priv_dec, pub_enc)
 
-
-def dh_encrypt(pub, message, aliceSig = None):
+#def dh_encrypt(pub, message, aliceSig = None):
+def dh_encrypt(pub, message):
     """ Assume you know the public key of someone else (Bob), 
     and wish to Encrypt a message for them.
         - Generate a fresh DH key for this message.
@@ -294,8 +304,8 @@ def dh_encrypt(pub, message, aliceSig = None):
 
     pass
 
-G, priv_dec, pub_enc = dh_get_key()
-dh_encrypt(pub_enc, "hello")
+#G, priv_dec, pub_enc = dh_get_key()
+#dh_encrypt(pub_enc, "hello")
 
 def dh_decrypt(priv, ciphertext, aliceVer = None):
     """ Decrypt a received message encrypted using your public key, 

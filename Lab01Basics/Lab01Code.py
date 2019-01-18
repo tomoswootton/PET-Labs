@@ -120,6 +120,7 @@ def point_add(a, b, p, x0, y0, x1, y1):
     if x0 == x1 and y0 == (y1.int_neg()).mod(p):
         return (None,None)
 
+
     if x0 == x1 or y0 == y1:
         raise Exception("EC Points must not be equal")
 
@@ -248,9 +249,6 @@ def ecdsa_sign(G, priv_sign, message):
 
     return sig
 
-group = ecdsa_key_gen()
-ecdsa_sign(group[0], group[1], "hello")
-
 def ecdsa_verify(G, pub_verify, message, sig):
     """ Verify the ECDSA signature on the message """
     plaintext =  message.encode("utf8")
@@ -270,6 +268,8 @@ def ecdsa_verify(G, pub_verify, message, sig):
 #
 # NOTE: 
 
+from hashlib import sha1 
+
 def dh_get_key():
     """ Generate a DH key pair """
     G = EcGroup()
@@ -277,7 +277,6 @@ def dh_get_key():
     pub_enc = priv_dec * G.generator()
     return (G, priv_dec, pub_enc)
 
-#def dh_encrypt(pub, message, aliceSig = None):
 def dh_encrypt(pub, message):
     """ Assume you know the public key of someone else (Bob), 
     and wish to Encrypt a message for them.
@@ -286,48 +285,115 @@ def dh_encrypt(pub, message):
         - Use the shared key to AES_GCM encrypt the message.
         - Optionally: sign the message with Alice's key.
     """
-    
+    # derive own key pair
     G, priv_dec, pub_enc = dh_get_key()
     shared_key = pub.pt_mul(priv_dec)
-    #print(G.check_point(shared_key))
+    shared_key = shared_key.get_affine()[0] 	# get x-coord		
+    shared_key = str(shared_key.repr())		# convert form Bn to string
+    shared_key = shared_key[:16]		# truncate to length 16 (128 bits)
 
-    aes = Cipher("AES-128-CTR")
+    # sign message
+    digest = sha1(message).digest()
+    aliceSig = do_ecdsa_sign(G, priv_dec, digest) 
+
+    # encrypt init
+    aes = Cipher.aes_128_gcm()
     iv = urandom(16)
+    # encrypt
+    enc = aes.enc(shared_key, iv)		# get encryption operation
+    #enc.update_associated(aliceSig)		# add key as non-secret data to perform tag over
+    ciphertext = enc.update(message)		# add plaintext
+    ciphertext += enc.finalize()		# finalise
+    tag = enc.get_tag(16)			# get tag
 
-    enc = aes.enc(shared_key, iv)
-    ciphertext = enc.update(message)
-    ciphertext += enc.finalize()
 
-    print(ciphertext)
+    return(iv, pub_enc, ciphertext, tag, aliceSig)
 
-    #dh_decrypt(priv_dec, ciphertext, tag, aliceVer=None)
 
     pass
 
-#G, priv_dec, pub_enc = dh_get_key()
-#dh_encrypt(pub_enc, "hello")
 
-def dh_decrypt(priv, ciphertext, aliceVer = None):
+def dh_decrypt(iv, priv_dec, pub_enc, ciphertext, tag):
     """ Decrypt a received message encrypted using your public key, 
     of which the private key is provided. Optionally verify 
     the message came from Alice using her verification key."""
+
+    # derive shared key
+    shared_key = pub_enc.pt_mul(priv_dec)
+    shared_key = shared_key.get_affine()[0] 	# get x-coord		
+    shared_key = str(shared_key.repr())		# convert form Bn to string
+    shared_key = shared_key[:16]
+
+    # decrypt
+    aes = Cipher.aes_128_gcm()
+    dec = aes.dec(shared_key, iv)		# get dec operation
+    #dec.update_associated(aliceSig)		# feed in alice pubkey
+    plaintext = dec.update(ciphertext)		# feed in ciphertext
+    dec.set_tag(tag)
+    plaintext += dec.finalize()
+
+    return plaintext
     
-    print(plaintext)
-    pass
+
 
 ## NOTE: populate those (or more) tests
 #  ensure they run using the "py.test filename" command.
 #  What is your test coverage? Where is it missing cases?
 #  $ py.test-2.7 --cov-report html --cov Lab01Code Lab01Code.py 
 
+
+
 def test_encrypt():
-    assert False
+    # derive (Bob) keys
+    G, priv_dec, pub_enc = dh_get_key()
+
+    message = "hello"    
+
+    # encrypt
+    iv, shared_key, ciphertext, tag, aliceSig = dh_encrypt(pub_enc, message)
+
+    assert len(message) == len(ciphertext)
 
 def test_decrypt():
-    assert False
+    # derive (Bob) key pair
+    G, bob_priv, bob_pub = dh_get_key()
+
+    message = "hello"  
+    
+    # encrypt using above pub key and new key pair (Alice)
+    iv, alice_pub, ciphertext, tag, aliceSig = dh_encrypt(bob_pub, message)
+
+    # decrypt with bobs private and alice's public keys
+    message_decrypted = dh_decrypt(iv, bob_priv, alice_pub, ciphertext, tag)
+
+    # check sig
+    assert do_ecdsa_verify(G, alice_pub, aliceSig, sha1(message).digest())
+
+    assert message == message_decrypted
 
 def test_fails():
-    assert False
+    from pytest import raises
+    # encrypt with public key derived from private key K, decrypt with K+1
+
+    # derive (Bob) key pair
+    G, bob_priv, bob_pub = dh_get_key()
+
+    message = "hello"  
+    
+    # encrypt using above pub key and new key pair (Alice)
+    iv, alice_pub, ciphertext, tag, aliceSig = dh_encrypt(bob_pub, message)
+
+    # K = K+1
+    bob_priv += 1
+
+    # ensure decrytpion failure exception is thrown from dec.finalize()
+    with raises(Exception) as excinfo:
+        # decrypt with bobs private and alice's public keys
+        message_decrypted = dh_decrypt(iv, bob_priv, alice_pub, ciphertext, tag)
+    assert 'Cipher: decryption failed.' in str(excinfo.value)
+        
+   # assert message == message_decrypted
+
 
 #####################################################
 # TASK 6 -- Time EC scalar multiplication
@@ -342,5 +408,4 @@ def test_fails():
 def time_scalar_mul():
     pass
 
-#is_point_on_curve(Bn(2), Bn(1), Bn(7), None, None)
-#is_point_on_curve(Bn(2), Bn(1), Bn(7), Bn(1), Bn(1))
+

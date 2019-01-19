@@ -372,8 +372,11 @@ def test_decrypt():
     assert message == message_decrypted
 
 def test_fails():
-    from pytest import raises
-    # encrypt with public key derived from private key K, decrypt with K+1
+    from pytest import raises  
+    """ 
+    	TEST 1
+    	encrypt with public key derived from private key K, decrypt with K+1
+    """
 
     # derive (Bob) key pair
     G, bob_priv, bob_pub = dh_get_key()
@@ -392,7 +395,16 @@ def test_fails():
         message_decrypted = dh_decrypt(iv, bob_priv, alice_pub, ciphertext, tag)
     assert 'Cipher: decryption failed.' in str(excinfo.value)
         
-   # assert message == message_decrypted
+    """
+        TEST 2
+	check invalid signature, sign with alice_pub, verify with -(alice_pub)
+    """
+
+    # change alice_pub
+    alice_pub = alice_pub.pt_neg()
+
+    # ensure signature verification fails, exception from do_ecdsa_verify
+    assert not do_ecdsa_verify(G, alice_pub, aliceSig, sha1(message).digest())
 
 
 #####################################################
@@ -405,7 +417,53 @@ def test_fails():
 #           - Print reports on timing dependencies on secrets.
 #           - Fix one implementation to not leak information.
 
+#point_scalar_multiplication_double_and_add(a, b, p, x, y, scalar)
+#point_scalar_multiplication_montgomerry_ladder(a, b, p, x, y, scalar)
+
 def time_scalar_mul():
-    pass
+    import time
+    # make curve and points
+    G = EcGroup(713) # NIST curve
+    d = G.parameters()
+    a, b, p = d["a"], d["b"], d["p"]
+    g = G.generator()
+    gx0, gy0 = g.get_affine()
+
+   
+    res_double_add = []
+    res_montgomerry = []
+    for i in range(10):
+        scalar = G.order().random()
+        # doubel and add
+	t0 = time.clock()
+        point_scalar_multiplication_double_and_add(a, b, p, gx0, gy0, scalar)
+        t1 = time.clock()
+        res_double_add = res_double_add + [[scalar.num_bits(),(t1-t0)]]
+
+        # montgomerry 
+        t0 = time.clock()
+        point_scalar_multiplication_montgomerry_ladder(a, b, p, gx0, gy0, scalar)
+        t1 = time.clock()
+        res_montgomerry = res_montgomerry + [[scalar.num_bits(),(t1-t0)]]
+
+    res_double_add.sort()
+    res_montgomerry.sort()
+
+    print("\nDouble and Add scalar multiplication: \n")
+    print("bits	time")
+    for i in range(len(res_double_add)):
+        print res_double_add[i][0],
+        print "	",
+	print res_double_add[i][1]
+
+    print("\n\nmontgomerry ladder scalar multiplication: \n")
+    print("bits	time")
+    for i in range(len(res_double_add)):
+        print res_montgomerry[i][0],
+        print "	",
+	print res_montgomerry[i][1]
+
+time_scalar_mul()
+
 
 

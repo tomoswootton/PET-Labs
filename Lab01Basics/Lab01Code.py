@@ -277,7 +277,6 @@ def dh_encrypt(pub, message):
     iv = urandom(16)
     # encrypt
     enc = aes.enc(shared_key, iv)		# get encryption operation
-    #enc.update_associated(aliceSig)		# add key as non-secret data to perform tag over
     ciphertext = enc.update(message)		# add plaintext
     ciphertext += enc.finalize()		# finalise
     tag = enc.get_tag(16)			# get tag
@@ -303,7 +302,6 @@ def dh_decrypt(iv, priv_dec, pub_enc, ciphertext, tag):
     # decrypt
     aes = Cipher.aes_128_gcm()
     dec = aes.dec(shared_key, iv)		# get dec operation
-    #dec.update_associated(aliceSig)		# feed in alice pubkey
     plaintext = dec.update(ciphertext)		# feed in ciphertext
     dec.set_tag(tag)
     plaintext += dec.finalize()

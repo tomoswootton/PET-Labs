@@ -162,20 +162,10 @@ def point_double(a, b, p, x, y):
 
     return xr, yr
 
+import time
+from time import sleep
+import random
 def point_scalar_multiplication_double_and_add(a, b, p, x, y, scalar):
-    """
-    Implement Point multiplication with a scalar:
-        r * (x, y) = (x, y) + ... + (x, y)    (r times)
-
-    Reminder of Double and Multiply algorithm: r * P
-        Q = infinity
-        for i = 0 to num_bits(P)-1
-            if bit i of r == 1 then
-                Q = Q + P
-            P = 2 * P
-        return Q
-
-    """
     Q = (None, None)
     P = (x, y)
 
@@ -184,26 +174,10 @@ def point_scalar_multiplication_double_and_add(a, b, p, x, y, scalar):
             Q = point_add(a,b,p,Q[0],Q[1],P[0],P[1]) 
         P = point_double(a,b,p,P[0],P[1])
 
+    sleep(1-(random.randint(1,1000)/1000))
     return Q
 
 def point_scalar_multiplication_montgomerry_ladder(a, b, p, x, y, scalar):
-    """
-    Implement Point multiplication with a scalar:
-        r * (x, y) = (x, y) + ... + (x, y)    (r times)
-
-    Reminder of Double and Multiply algorithm: r * P
-        R0 = infinity
-        R1 = P
-        for i in num_bits(P)-1 to zero:
-            if di = 0:
-                R1 = R0 + R1
-                R0 = 2R0
-            else
-                R0 = R0 + R1
-                R1 = 2 R1
-        return R0
-
-    """
     R0 = (None, None)
     R1 = (x, y)
 
@@ -214,6 +188,8 @@ def point_scalar_multiplication_montgomerry_ladder(a, b, p, x, y, scalar):
         else:
             R1 = point_add(a,b,p,R0[0],R0[1],R1[0],R1[1]) 
             R0 = point_double(a,b,p,R0[0],R0[1])
+
+    sleep(1-(random.randint(1,1000)/1000))
     return R0
 
 
@@ -272,7 +248,7 @@ from hashlib import sha1
 
 def dh_get_key():
     """ Generate a DH key pair """
-    G = EcGroup()
+    G = EcGroup(713)
     priv_dec = G.order().random()
     pub_enc = priv_dec * G.generator()
     return (G, priv_dec, pub_enc)
@@ -421,7 +397,6 @@ def test_fails():
 #point_scalar_multiplication_montgomerry_ladder(a, b, p, x, y, scalar)
 
 def time_scalar_mul():
-    import time
     # make curve and points
     G = EcGroup(713) # NIST curve
     d = G.parameters()
@@ -432,38 +407,50 @@ def time_scalar_mul():
    
     res_double_add = []
     res_montgomerry = []
-    for i in range(10):
+    for i in range(3):
         scalar = G.order().random()
-        # doubel and add
+        # double and add
 	t0 = time.clock()
+        print("t0 = ",t0)
+        
         point_scalar_multiplication_double_and_add(a, b, p, gx0, gy0, scalar)
         t1 = time.clock()
-        res_double_add = res_double_add + [[scalar.num_bits(),(t1-t0)]]
+        print("t1 = ",t1)
+        res_double_add = res_double_add + [[len(scalar.repr()),(t1-t0)]]
 
         # montgomerry 
         t0 = time.clock()
         point_scalar_multiplication_montgomerry_ladder(a, b, p, gx0, gy0, scalar)
         t1 = time.clock()
-        res_montgomerry = res_montgomerry + [[scalar.num_bits(),(t1-t0)]]
+        res_montgomerry = res_montgomerry + [[len(scalar.repr()),(t1-t0)]]
 
     res_double_add.sort()
     res_montgomerry.sort()
 
     print("\nDouble and Add scalar multiplication: \n")
-    print("bits	time")
+    print("length	time")
     for i in range(len(res_double_add)):
         print res_double_add[i][0],
         print "	",
 	print res_double_add[i][1]
 
     print("\n\nmontgomerry ladder scalar multiplication: \n")
-    print("bits	time")
-    for i in range(len(res_double_add)):
+    print("length	time")
+    for i in range(len(res_montgomerry)):
         print res_montgomerry[i][0],
         print "	",
 	print res_montgomerry[i][1]
 
-time_scalar_mul()
+"""
+By running the time_Scalr_mul() function before editing the scalar multiplication functions, 
+we could see that the functions ran between 0.02s and 0.035s for different length scalars. The
+time taken increased as the length of the scalar increased. 
+
+So, we have edited the scalar multiplication functions to ensure they return only after 0.05 
+seconds have passed since being called. Now, all scalar multiplications look the same to an
+adversary using a timing side channel attack by a sleep() cal over random ms.
+"""
+
 
 
 

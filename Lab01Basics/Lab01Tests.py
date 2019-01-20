@@ -331,3 +331,5 @@ def test_check_fail():
 @pytest.mark.task5
 def test_key_gen():
     G, priv, pub = dh_get_key()
+
+time_scalar_mul()

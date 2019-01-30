@@ -62,6 +62,7 @@ def mix_server_one_hop(private_key, message_list):
         - the address and message are decrypted, decoded and returned
 
     """
+
     G = EcGroup()
 
     out_queue = []
@@ -133,8 +134,28 @@ def mix_client_one_hop(public_key, address, message):
     client_public_key  = private_key * G.generator()
 
     ## ADD CODE HERE
+    ## make shared key
+    shared_key = private_key * public_key
+    key_material = sha512(shared_key.export()).digest()
 
-    return OneHopMixMessage(client_public_key, expected_mac, address_cipher, message_cipher)
+    # Use different parts of the shared key for different operations
+    hmac_key = key_material[:16]
+    address_key = key_material[16:32]
+    message_key = key_material[32:48]
+
+    # Encrypt payload 
+    iv = b"\x00"*16
+    address_cipher = aes_ctr_enc_dec(address_key, iv, address_plaintext)
+    message_cipher = aes_ctr_enc_dec(message_key, iv, message_plaintext)
+
+    # hmac encrypted address and message
+    h = Hmac(b"sha512", hmac_key)
+    h.update(address_cipher)
+    h.update(message_cipher)
+    mac = h.digest()
+    
+
+    return OneHopMixMessage(client_public_key, mac[:20], address_cipher, message_cipher)
 
     
 
@@ -159,6 +180,7 @@ def mix_server_n_hop(private_key, message_list, final=False):
 
     Broadly speaking the mix will process each message in turn: 
         - it derives a shared key (using its private_key), 
+	- extract blinding factor
         - checks the first hmac,
         - decrypts all other parts,
         - either forwards or decodes the message. 
@@ -261,7 +283,25 @@ def mix_client_n_hop(public_keys, address, message):
     private_key = G.order().random()
     client_public_key  = private_key * G.generator()
 
-    ## ADD CODE HERE
+    # for each hop
+    for key in public_keys:
+        # make shared key
+        shared_key = private_key * key
+        key_material = sha512(shared_key.export()).digest()
+
+        # Use different parts of the shared key for different operations
+        hmac_key = key_material[:16]
+        address_key = key_material[16:32]
+        message_key = key_material[32:48]
+
+        # apply blinding factor
+        blinding_factor = Bn.from_binary(key_material[48:])
+        new_ec_public_key = -blinding_factor * key
+
+        # encrypt message
+        iv = b"\x00"*16
+        address_cipher = aes_ctr_enc_dec(address_key, iv, address_plaintext)
+        message_cipher = aes_ctr_enc_dec(message_key, iv, message_plaintext)
 
     return NHopMixMessage(client_public_key, hmacs, address_cipher, message_cipher)
 
@@ -318,7 +358,7 @@ def analyze_trace(trace, target_number_of_friends, target=0):
 ## TASK Q1 (Question 1): The mix packet format you worked on uses AES-CTR with an IV set to all zeros. 
 #                        Explain whether this is a security concern and justify your answer.
 
-""" TODO: Your answer HERE """
+""" Yes. CTR works by XOR'ing the plaintext with a value determined by the key and IV alone. Thus if the same message is sent twice to the same mix then the encryption will be identical. This makes the scheme unsecure against chosen plaintext attack and indistinguishablity of ciphertexts   """
 
 
 ## TASK Q2 (Question 2): What assumptions does your implementation of the Statistical Disclosure Attack 
@@ -326,4 +366,32 @@ def analyze_trace(trace, target_number_of_friends, target=0):
 #                        the correctness of the result returned dependent on this background distribution?
 
 """ TODO: Your answer HERE """
+
+
+
+G1 = EcGroup()
+private_key1 = G1.order().random()
+public_key1  = private_key1 * G1.generator()
+
+G2 = EcGroup()
+private_key2 = G2.order().random()
+public_key2  = private_key2 * G2.generator()
+
+## shared key
+shared_element = private_key1 * public_key2
+key_material = sha512(shared_element.export()).digest()
+
+print("public key", public_key2)
+
+blinding_factor = Bn.from_binary(key_material[48:])
+new_public_key2 = (1/blinding_factor) * public_key2
+
+print("public key blinded", new_public_key2)
+print("blinding factor", 1/blinding_factor)
+
+new_public_key3 = blinding_factor * new_public_key2
+
+
+print("public key unblinded", new_public_key3)
+print("blinding factor", blinding_factor)
 

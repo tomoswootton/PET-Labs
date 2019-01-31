@@ -383,11 +383,7 @@ def analyze_trace(trace, target_number_of_friends, target=0):
 #                        makes about the distribution of traffic from non-target senders to receivers? Is
 #                        the correctness of the result returned dependent on this background distribution?
 
-""" It assumes that the other messages in the system are chosen uniformly at random. Yes, for example if there were a sender and receiver pair Bob and Charlie exchanging many messages back and forth. Bob and Chalies ID's would be present in the mix more often than other IDs and so would appear in the receiver list of possible messages sent by Alice with larger probability than other IDs. Thus my implementation would be more likely to classify them as Alice's friends, even if not a single message had been exchanged between Alice and Bob or Alice and Charlie.
-
-ach of the other participants
-sends a message to a recipient chosen uniformly at random out of N
-potential recipientsE """
+""" It assumes that the other messages in the system are chosen uniformly at random. Yes, for example if there were a sender and receiver pair Bob and Charlie exchanging many messages back and forth. Bob and Chalies IDs would be present in the mix more often than other IDs and so would appear in the receiver list of possible messages sent by Alice with larger probability than other IDs. Thus my implementation would be more likely to classify them as Alice's friends, even if not a single message had been exchanged between Alice and Bob or Alice and Charlie.
 
 
 G1 = EcGroup()

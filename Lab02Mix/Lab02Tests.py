@@ -212,3 +212,4 @@ def test_trace_variable():
     assert len(TA_friends) == len(friends)
     assert sorted(TA_friends) == sorted(friends)
 
+

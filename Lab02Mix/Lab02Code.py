@@ -350,10 +350,28 @@ def analyze_trace(trace, target_number_of_friends, target=0):
     return the list of receiver identifiers that are the most likely 
     friends of the target.
     """
-
-    ## ADD CODE HERE
-
-    return []
+    #make list of all ID's sent to by id=0
+    possible_sentto = []
+    # for each sender receiver list pairs in trace
+    for pair in trace:
+        # if message sent by 0
+        if pair[0][0] == target:
+            # grab receiver ID of all possible recipients
+            for ID in pair[1]:
+                possible_sentto += [ID]
+    
+    #print(sentto)
+    #sort by most common item in list
+    import collections
+    counter = collections.Counter(possible_sentto)
+    counter.most_common()
+    
+    #pull out top target_number_of_friends from list and return as suspected friends
+    friends = []
+    for i in range(target_number_of_friends):
+        #grab id value of most common addresses sent to
+        friends += [counter.most_common()[i][0]]
+    return friends
 
 ## TASK Q1 (Question 1): The mix packet format you worked on uses AES-CTR with an IV set to all zeros. 
 #                        Explain whether this is a security concern and justify your answer.
@@ -365,8 +383,11 @@ def analyze_trace(trace, target_number_of_friends, target=0):
 #                        makes about the distribution of traffic from non-target senders to receivers? Is
 #                        the correctness of the result returned dependent on this background distribution?
 
-""" TODO: Your answer HERE """
+""" It assumes that the other messages in the system are chosen uniformly at random. Yes, for example if there were a sender and receiver pair Bob and Charlie exchanging many messages back and forth. Bob and Chalies ID's would be present in the mix more often than other IDs and so would appear in the receiver list of possible messages sent by Alice with larger probability than other IDs. Thus my implementation would be more likely to classify them as Alice's friends, even if not a single message had been exchanged between Alice and Bob or Alice and Charlie.
 
+ach of the other participants
+sends a message to a recipient chosen uniformly at random out of N
+potential recipientsE """
 
 
 G1 = EcGroup()
@@ -394,4 +415,5 @@ new_public_key3 = blinding_factor * new_public_key2
 
 print("public key unblinded", new_public_key3)
 print("blinding factor", blinding_factor)
+"""
 

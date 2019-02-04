@@ -215,15 +215,12 @@ def mix_server_n_hop(private_key, message_list, final=False):
 
         ## Check the HMAC
         h = Hmac(b"sha512", hmac_key)
-        print(hmac_key)
-        print(msg.hmacs)
 
         for other_mac in msg.hmacs[1:]:
             h.update(other_mac)
 
         h.update(msg.address)
         h.update(msg.message)
-        print(msg.message[:5])
 
         expected_mac = h.digest()
 
@@ -286,132 +283,68 @@ def mix_client_n_hop(public_keys, address, message):
     client_public_key  = private_key * G.generator()
 
 
-
     #key blinding
-    new_public_key = []
+    blinded_public_keys = []
     #start with first key in list
-    new_public_key += [public_keys[0]]
+    blinded_public_keys += [public_keys[0]]
     blinding_factor = 1
 
     # for each public key - add its key material to blinding factor, blind,
     # add to new public key list
     for i in range(1, len(public_keys)):
         # derive shared key from final public key in new list
-        shared_key = private_key * new_public_key[-1]
+        shared_key = private_key * blinded_public_keys[-1]
         key_material = sha512(shared_key.export()).digest()
         # add shared_key material to blinding factor
         blinding_factor *= Bn.from_binary(key_material[48:])
-
         # add next key in list to new pub key list with blinding
-        new_public_key.append(blinding_factor * public_keys[i])
+        blinded_public_keys.append(blinding_factor * public_keys[i])
 
     #reverse list
-    new_public_key = new_public_key[::-1]
-
-    
-    # encrypt
-
-    ## First get a shared key
-    shared_element = private_key * new_public_key[0]
-    key_material = sha512(shared_element.export()).digest()
-
-    # Use different parts of the shared key for different operations
-    hmac_key = key_material[:16]
-    address_key = key_material[16:32]
-    message_key = key_material[32:48]
-
-    iv = b"\x00"*16
-    address_cipher = aes_ctr_enc_dec(address_key, iv, address_plaintext)
-    message_cipher = aes_ctr_enc_dec(message_key, iv, message_plaintext)
-    """
-    # hmacs
-    hmacs = []
-    # for each public key HMAC over all other hmacs, the messsage and the addresss
-    for i in range(0,len(new_public_key)):
-        # derive hmac key
-        shared_key = private_key * new_public_key[i]
-        key_material = sha512(shared_key.export()).digest()
-        hmac_key = key_material[:16]
-
-        h = Hmac(b"sha256",  hmac_key)
-	
-        # add other hmacs
-        for other_mac in hmacs[1:]:
-            h.update(other_mac)
-
-        #add message and address
-        h.update(address_plaintext)
-        h.update(message_plaintext) 
-
-        new_mac = h.digest()
-        print(new_mac[:20])
-        hmacs += new_mac[:20]
-    """
-
+    blinded_public_keys = blinded_public_keys[::-1]
  
+
     hmacs = []
-    h = Hmac(b"sha512", hmac_key)
-    h.update(address_cipher)
-    h.update(message_cipher)
-    print(message_plaintext[:5])
-    mac = h.digest()
-    
-    hmacs += [mac[:20]]
-    print(hmac_key)
-    print(hmacs)
-    """
+    address_cipher = address_plaintext
+    message_cipher = message_plaintext
+    # for each key encrypt and calc. new hmac
+    for key in blinded_public_keys: 
 
-	## Decrypt the hmacs, address and the message
-        aes = Cipher("AES-128-CTR") 
+        ## First get a shared key
+        shared_element = private_key * key
+        key_material = sha512(shared_element.export()).digest()
 
-        # Decrypt hmacs
-        new_hmacs = []
-        for i, other_mac in enumerate(msg.hmacs[1:]):
-            # Ensure the IV is different for each hmac
-            iv = pack("H14s", i, b"\x00"*14)
-
-            hmac_plaintext = aes_ctr_enc_dec(hmac_key, iv, other_mac)
-            new_hmacs += [hmac_plaintext]
-
-        # Decrypt address & message
-        iv = b"\x00"*16
-        
-        address_plaintext = aes_ctr_enc_dec(address_key, iv, msg.address)
-        message_plaintext = aes_ctr_enc_dec(message_key, iv, msg.message)
-
-
-    address_ciphertext = address_plaintext
-    message_ciphertext = message_plaintext
-    iv = b"\x00"*16
-    """
-    # encrypt
-    aes = Cipher("AES-128-CTR") 
-    address_key = key_material[16:32]
-    message_key = key_material[32:48]
-    #for key in public_keys:
-        
-  
-    """
         # Use different parts of the shared key for different operations
         hmac_key = key_material[:16]
         address_key = key_material[16:32]
         message_key = key_material[32:48]
 
-        # apply blinding factor
-        blinding_factor = Bn.from_binary(key_material[48:])
-        new_ec_public_key = -blinding_factor * key
-
-        # encrypt message
+        aes = Cipher("AES-128-CTR")
         iv = b"\x00"*16
-        address_cipher = aes_ctr_enc_dec(address_key, iv, address_plaintext)
-        message_cipher = aes_ctr_enc_dec(message_key, iv, message_plaintext)
-    """
-    iv = b"\x00"*16
-    address_cipher = aes_ctr_enc_dec(address_key, iv, address_plaintext)
-    message_cipher = aes_ctr_enc_dec(message_key, iv, message_plaintext)
 
-    return NHopMixMessage(client_public_key, hmacs, address_cipher, message_cipher) 
+        # encapsulation encryption
+        address_cipher = aes_ctr_enc_dec(address_key, iv, address_cipher)
+        message_cipher = aes_ctr_enc_dec(message_key, iv, message_cipher)
+ 
 
+        #hmacs
+        h = Hmac(b"sha512", hmac_key)
+
+        for i in range(len(hmacs)):
+            iv = pack("H14s", i, b"\x00"*14)
+            #encrypt other hmacs
+            hmac_ciphertext = aes_ctr_enc_dec(hmac_key, iv, hmacs[i])
+            hmacs[i] = hmac_ciphertext
+            # add to data to be hmac
+            h.update(hmac_ciphertext)      
+        
+  
+        h.update(address_cipher)
+        h.update(message_cipher)
+        hmacs.insert(0, h.digest()[:20])
+
+    
+    return NHopMixMessage(client_public_key, hmacs, address_cipher, message_cipher)
 
 #####################################################
 # TASK 4 -- Statistical Disclosure Attack
@@ -490,32 +423,4 @@ def analyze_trace(trace, target_number_of_friends, target=0):
 #                        the correctness of the result returned dependent on this background distribution?
 
 """ It assumes that the other messages in the system are chosen uniformly at random. Yes, for example if there were a sender and receiver pair Bob and Charlie exchanging many messages back and forth. Bob and Chalies IDs would be present in the mix more often than other IDs and so would appear in the receiver list of possible messages sent by Alice with larger probability than other IDs. Thus my implementation would be more likely to classify them as Alice's friends, even if not a single message had been exchanged between Alice and Bob or Alice and Charlie.
-
-
-G1 = EcGroup()
-private_key1 = G1.order().random()
-public_key1  = private_key1 * G1.generator()
-
-G2 = EcGroup()
-private_key2 = G2.order().random()
-public_key2  = private_key2 * G2.generator()
-
-## shared key
-shared_element = private_key1 * public_key2
-key_material = sha512(shared_element.export()).digest()
-
-print("public key", public_key2)
-
-blinding_factor = Bn.from_binary(key_material[48:])
-new_public_key2 = (blinding_factor) * public_key2
-
-print("public key blinded", new_public_key2)
-print("blinding factor", 1/blinding_factor)
-
-new_public_key3 = blinding_factor * new_public_key2
-
-
-print("public key unblinded", new_public_key3)
-print("blinding factor", blinding_factor)
-
 """

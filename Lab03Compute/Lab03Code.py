@@ -27,11 +27,13 @@ def setup():
     o = G.order()
     return (G, g, h, o)
 
+
 def keyGen(params):
    """ Generate a private / public key pair """
    (G, g, h, o) = params
-   
-   # ADD CODE HERE
+
+   priv = o.random()
+   pub = priv * g
 
    return (priv, pub)
 
@@ -39,8 +41,11 @@ def encrypt(params, pub, m):
     """ Encrypt a message under the public key """
     if not -100 < m < 100:
         raise Exception("Message value to low or high.")
+    (G,g,h,o) = params
 
-   # ADD CODE HERE
+    k = o.random()
+
+    c = (k*g, k*pub + m*h)
 
     return c
 
@@ -73,9 +78,12 @@ def logh(params, hm):
 def decrypt(params, priv, ciphertext):
     """ Decrypt a message using the private key """
     assert isCiphertext(params, ciphertext)
+
     a , b = ciphertext
 
-   # ADD CODE HERE
+    ax = priv*a
+
+    hm = b - ax
 
     return logh(params, hm)
 
@@ -91,16 +99,20 @@ def add(params, pub, c1, c2):
     assert isCiphertext(params, c1)
     assert isCiphertext(params, c2)
 
-   # ADD CODE HERE
+    (G,g,h,o) = params
+    #(gk0+k1, gx(k0+k1)h(m0+m1))
 
-    return c3
+    b = c1[1]+c2[1]
+    a = c1[0]+c2[0]
+
+    return a,b
 
 def mul(params, pub, c1, alpha):
     """ Given a ciphertext compute the ciphertext of the 
         product of the plaintext time alpha """
     assert isCiphertext(params, c1)
 
-   # ADD CODE HERE
+    c3 = c1[0].pt_mul(alpha), c1[1].pt_mul(alpha)
 
     return c3
 
@@ -110,11 +122,13 @@ def mul(params, pub, c1, alpha):
 #           set of authorities.
 
 def groupKey(params, pubKeys=[]):
-    """ Generate a group public key from a list of public keys """
     (G, g, h, o) = params
+    """ Generate a group public key from a list of public keys """
 
-   # ADD CODE HERE
-
+    pub = G.infinite()
+    for key in pubKeys: 
+        pub = pub + key
+    
     return pub
 
 def partialDecrypt(params, priv, ciphertext, final=False):
@@ -122,7 +136,9 @@ def partialDecrypt(params, priv, ciphertext, final=False):
         If final is True, then return the plaintext. """
     assert isCiphertext(params, ciphertext)
     
-    # ADD CODE HERE
+    a1,b1 = ciphertext
+
+    b1 = b1 - priv*a1
 
     if final:
         return logh(params, b1)
@@ -140,11 +156,25 @@ def corruptPubKey(params, priv, OtherPubKeys=[]):
         public key for the corrupt authority that leads to a group
         public key corresponding to a private key known to the
         corrupt authority. """
-    (G, g, h, o) = params
     
-   # ADD CODE HERE
+    """
+        1) Work out threshold key generated from others
+        2) multiply own private key by negative of key found in 1) 
+        3) add key found in 2) to threshold key
+        This process will cancel out the public key values of the other participants, allowing
+        the attackers key to fully encrypt
+    """
 
-    return pub
+    (G, g, h, o) = params
+    #1)
+    pub = G.infinite()
+    for key in OtherPubKeys: 
+        pub = pub - key
+    
+    #2) 3)
+    corrupt_pub = (priv*g)+pub
+
+    return corrupt_pub
 
 #####################################################
 # TASK 5 -- Implement operations to support a simple
@@ -157,7 +187,12 @@ def encode_vote(params, pub, vote):
         zero and the votes for one."""
     assert vote in [0, 1]
 
-   # ADD CODE HERE
+    if (vote == 0):
+        v0 = encrypt(params, pub, 1)
+        v1 = encrypt(params, pub, 0)
+    else:
+        v0 = encrypt(params, pub, 0)
+        v1 = encrypt(params, pub, 1)
 
     return (v0, v1)
 
@@ -166,8 +201,15 @@ def process_votes(params, pub, encrypted_votes):
         to sum votes for zeros and votes for ones. """
     assert isinstance(encrypted_votes, list)
     
-   # ADD CODE HERE
+    # init summation var with first vote
+    tv0 = encrypted_votes[0][0]
+    tv1 = encrypted_votes[0][1]
 
+    # add other votes to sum
+    for i in range(1,len(encrypted_votes)):
+        tv0 = add(params, pub, tv0, encrypted_votes[i][0])
+        tv1 = add(params, pub, tv1, encrypted_votes[i][1])
+        
     return tv0, tv1
 
 def simulate_poll(votes):
@@ -181,6 +223,7 @@ def simulate_poll(votes):
     priv1, pub1 = keyGen(params)
     priv2, pub2 = keyGen(params)
     priv3, pub3 = keyGen(params)
+
     pub = groupKey(params, [pub1, pub2, pub3])
 
     # Simulate encrypting votes

@@ -81,11 +81,7 @@ def decrypt(params, priv, ciphertext):
 
     a , b = ciphertext
 
-    ax = priv*a
-
-    hm = b - ax
-
-    return logh(params, hm)
+    return logh(params, b - priv*a)
 
 #####################################################
 # TASK 2 -- Define homomorphic addition and
@@ -100,7 +96,6 @@ def add(params, pub, c1, c2):
     assert isCiphertext(params, c2)
 
     (G,g,h,o) = params
-    #(gk0+k1, gx(k0+k1)h(m0+m1))
 
     b = c1[1]+c2[1]
     a = c1[0]+c2[0]
@@ -162,12 +157,12 @@ def corruptPubKey(params, priv, OtherPubKeys=[]):
         2) multiply own private key by negative of key found in 1) 
         3) add key found in 2) to threshold key
         This process will cancel out the public key values of the other participants, allowing
-        the attackers key to fully encrypt
+        the attacker's key to fully encrypt
     """
 
     (G, g, h, o) = params
     #1)
-    pub = G.infinite()
+    pub = G.infinite()			#init point
     for key in OtherPubKeys: 
         pub = pub - key
     
@@ -260,7 +255,11 @@ def simulate_poll(votes):
 # What is the advantage of the adversary in guessing b given your implementation of 
 # Homomorphic addition? What are the security implications of this?
 
-""" Your Answer here """
+""" Since the encryption scheme is homomorphic E(Pa+Pb) = E(Pa)+E(Pb) = Ca+Cb = C.
+    This means that all the adversary needs to do is compute Ca + Cb and Cb + Cc and
+    see which one matches with C. The Adversary should guess b everytime and so the game
+    is not secure. 
+ """
 
 ###########################################################
 # TASK Q2 -- Answer questions regarding your implementation
@@ -271,4 +270,30 @@ def simulate_poll(votes):
 # that it yields an arbitrary result. Can those malicious actions 
 # be detected given your implementation?
 
-""" Your Answer here """
+""" 
+    a)No.
+    
+    Let the values of w0,w1 be 'so far' in the threshold signature of votes counted. i.e., 
+    the signature that holds the counter of results.  
+  
+    An attacker cant disrupt the poll so that it yields no results because it doesn't have the 
+    values of w0,w1 'so far' so cant become the last to contribute and set w0,w1 = -w0,-w1 to
+    cancel out the votes and set the counter to w0,w1 = 0,0.
+
+    b)
+    
+    What they can do is obscure the results in some way so that results are clearly 
+    incorrect and no information about the true result is revealed, for example 
+    encrypting a large negative random number:
+
+    -modify encrypt() and remove limit on m size
+    -set a,b to large random negative integers
+    -modify encode_vote() to return v0,v1 as encryptions of values a,b
+    
+    
+    Yes the malicious actions can be performed undeteced given my implementation. A way to fix 	   this may be for some kind of zero-knowledge range proof to be checked by the process_votes 
+    function to ensure a vote is 0 or 1.
+    votes 
+ """
+
+

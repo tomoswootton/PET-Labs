@@ -255,11 +255,11 @@ def simulate_poll(votes):
 # What is the advantage of the adversary in guessing b given your implementation of 
 # Homomorphic addition? What are the security implications of this?
 
-""" Since the encryption scheme is homomorphic E(Pa+Pb) = E(Pa)+E(Pb) = Ca+Cb = C.
-    This means that all the adversary needs to do is compute Ca + Cb and Cb + Cc and
-    see which one matches with C. The Adversary should guess b everytime and so the game
-    is not secure. 
- """
+""" Since the encrytpion includes randomness it is semantically secure and each ciphertext is
+    indistinguisable from any other, even if the same plaintext is encyrpted twice. Therefore
+    an adversary has negligible advantage. For C1 = Ca + Ca and C2 = E(Pa) + E(Pb), C1 != C2
+    even though they decrypt to the same value.
+"""
 
 ###########################################################
 # TASK Q2 -- Answer questions regarding your implementation
@@ -271,8 +271,7 @@ def simulate_poll(votes):
 # be detected given your implementation?
 
 """ 
-    a)No.
-    
+    a)    
     Let the values of w0,w1 be 'so far' in the threshold signature of votes counted. i.e., 
     the signature that holds the counter of results.  
   
@@ -281,7 +280,6 @@ def simulate_poll(votes):
     cancel out the votes and set the counter to w0,w1 = 0,0.
 
     b)
-    
     What they can do is obscure the results in some way so that results are clearly 
     incorrect and no information about the true result is revealed, for example 
     encrypting a large negative random number:
@@ -293,7 +291,6 @@ def simulate_poll(votes):
     
     Yes the malicious actions can be performed undeteced given my implementation. A way to fix 	   this may be for some kind of zero-knowledge range proof to be checked by the process_votes 
     function to ensure a vote is 0 or 1.
-    votes 
  """
 
 

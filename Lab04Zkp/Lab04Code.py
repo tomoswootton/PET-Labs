@@ -53,7 +53,7 @@ def proveKey(params, priv, pub):
     w = o.random()
     witness = w*g
     c = to_challenge([g,witness])
-    r = w-priv*c
+    r = w-priv*c % o
     return (c, r)
 
 def verifyKey(params, pub, proof):
@@ -98,7 +98,7 @@ def proveCommitment(params, C, r, secrets):
     # contruct witness
     W = w0*h0 + w1*h1 + w2*h2 + w3*h3 + wr*g
 
-    # find c
+    # contruct challenge
     c = to_challenge([g,h0,h1,h2,h3,W])
 
     # calculate response values from randoms
@@ -149,9 +149,10 @@ def verifyDLEquality(params, K, L, proof):
     (G, g, (h0, h1, h2, h3), o) = params
     c, r = proof
 
-    ## YOUR CODE HERE:
+    #Kw = r*g + c*K so simply replace Kw, Lw in c_prime
+    c_prime = to_challenge([g,h0,r*g + c*K, r*h0 + c*L])
 
-    return # YOUR RETURN HERE
+    return c_prime == c
 
 #####################################################
 # TASK 4 -- Prove correct encryption and knowledge of 
@@ -174,7 +175,28 @@ def proveEnc(params, pub, Ciphertext, k, m):
     (G, g, (h0, h1, h2, h3), o) = params
     a, b = Ciphertext
 
-    ## YOUR CODE HERE:
+    """ correct encrytpion and knowledge of m
+
+    We can prove correct encryption by proving a = g*k with schnorr verification and 
+    b = pub*k+h0*m by thinking of b as a pedersen commitment. 
+
+    This also acts as a proof of knowledge of m since it is computationally infeasible
+    for the proof cannot to be contructed without knowledge of m. (Assuming DH problem 
+    unbreakable)
+
+    """
+    # pick random values
+    wk, wm = o.random(), o.random()
+
+    # construct  witnesses
+    Wa = wk*g
+    Wb = wk * pub + wm * h0
+
+    # construct challenge
+    c = to_challenge([g, h0, Wa, Wb])
+
+    # calculate response values
+    rk, rm = wk - c*k, wm - c*m
 
     return (c, (rk, rm))
 
@@ -184,9 +206,10 @@ def verifyEnc(params, pub, Ciphertext, proof):
     a, b = Ciphertext    
     (c, (rk, rm)) = proof
 
-    ## YOUR CODE HERE:
+    c_prime = to_challenge([g,h0,rk*g + c*a,rk*pub + rm*h0 + c*b])
 
-    return ## YOUR RETURN HERE
+
+    return c_prime == c
 
 
 #####################################################
@@ -209,17 +232,27 @@ def prove_x0eq10x1plus20(params, C, x0, x1, r):
     """ Prove C is a commitment to x0 and x1 and that x0 = 10 x1 + 20. """
     (G, g, (h0, h1, h2, h3), o) = params
 
-    ## YOUR CODE HERE:
+    """
+        Cx0+(-20)*g = (10)*x1*g + h1
+        proves entire commitment
+    """
 
-    return ## YOUR RETURN HERE
+    # Cx1 = x0h0
+    w1 = o.random()				# random value
+    W1 = w1*g					# witness
+    c = to_challenge([g,h1,10*w1*g+h1])		# challenge
+    r1 = w1-c*x1				# response
+
+    return (c,r1)
 
 def verify_x0eq10x1plus20(params, C, proof):
     """ Verify that proof of knowledge of C and x0 = 10 x1 + 20. """
     (G, g, (h0, h1, h2, h3), o) = params
+    (c,r1) = proof
 
-    ## YOUR CODE HERE:
-
-    return ## YOUR RETURN HERE
+    c_prime = to_challenge([g,h1,10*r1*g+h1+c*C])
+    c_prime = c_prime+(-20)*g
+    return c_prime == c
 
 #####################################################
 # TASK 6 -- (OPTIONAL) Prove that a ciphertext is either 0 or 1

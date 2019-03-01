@@ -50,9 +50,10 @@ def proveKey(params, priv, pub):
                  r (the response)
     """  
     (G, g, hs, o) = params
-    
-    ## YOUR CODE HERE:
-    
+    w = o.random()
+    witness = w*g
+    c = to_challenge([g,witness])
+    r = w-priv*c
     return (c, r)
 
 def verifyKey(params, pub, proof):
@@ -91,7 +92,17 @@ def proveCommitment(params, C, r, secrets):
     (G, g, (h0, h1, h2, h3), o) = params
     x0, x1, x2, x3 = secrets
 
-    ## YOUR CODE HERE:
+    # pick random values w0,w1,w2,w3
+    w0,w1,w2,w3,wr = o.random(), o.random(), o.random(), o.random(), o.random()
+      
+    # contruct witness
+    W = w0*h0 + w1*h1 + w2*h2 + w3*h3 + wr*g
+
+    # find c
+    c = to_challenge([g,h0,h1,h2,h3,W])
+
+    # calculate response values from randoms
+    responses = w0-x0*c, w1-x1*c, w2-x2*c, w3-x3*c, wr-r*c
 
     return (c, responses)
 

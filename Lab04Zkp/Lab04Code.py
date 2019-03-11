@@ -233,25 +233,32 @@ def prove_x0eq10x1plus20(params, C, x0, x1, r):
     (G, g, (h0, h1, h2, h3), o) = params
 
     """
-        Cx0+(-20)*g = (10)*x1*g + h1
-        proves entire commitment
+    	We have C = r*g + x1*h1 + x0*h0 = r*g +  x1*h1 + 10x1*h0 + 20*h0
+	So we need to blind the opener r and secretx1
     """
 
-    # Cx1 = x0h0
-    w1 = o.random()				# random value
-    W1 = w1*g					# witness
-    c = to_challenge([g,h1,10*w1*g+h1])		# challenge
-    r1 = w1-c*x1				# response
+    wr = o.random()				# random values
+    wx1 = o.random()
+    
+    W = wr*g + wx1*h1 + (10*wx1)*h0 + 20*h0	# witness
 
-    return (c,r1)
+    c = to_challenge([g,h0,h1,W])		# challenge
+
+    rr = wr-c*r					# responses
+    rx1 = wx1 -c*x1
+
+    return (c,rr,rx1)
 
 def verify_x0eq10x1plus20(params, C, proof):
     """ Verify that proof of knowledge of C and x0 = 10 x1 + 20. """
     (G, g, (h0, h1, h2, h3), o) = params
-    (c,r1) = proof
+    (c,rr,rx1) = proof
 
-    c_prime = to_challenge([g,h1,10*r1*g+h1+c*C])
-    c_prime = c_prime+(-20)*g
+    W = rr*g + rx1*h1 + (10*rx1)*h0 + 20*h0
+
+    # we must cancel out the extra (20*c)*h0 from c*C
+    c_prime = to_challenge([g,h0,h1,W + c*C + (-20*c)*h0])
+
     return c_prime == c
 
 #####################################################
@@ -297,7 +304,12 @@ def test_bin_incorrect():
 # that  deviates from the Schnorr identification protocol? Justify 
 # your answer by describing what a dishonest verifier may do.
 
-""" TODO: Your answer here. """
+""" 
+    No. A dishonest verifier may be able to extract knowledge of the secret by finding 
+    2 challenge, response pairs for the same round (and thus same ranomdness) and solving
+    the linear equations of the form response = round_randomness + secret*challenge. 
+    
+"""
 
 #####################################################
 # TASK Q2 - Answer the following question:
@@ -310,7 +322,9 @@ def test_bin_incorrect():
 #
 # Hint: Look at "test_prove_something" too.
 
-""" TODO: Your answer here. """
+""" 
+    A verifier is convinced that the prover knows y and that KX,KY are commitments to x,y
+"""
 
 def prove_something(params, KX, KY, y):
     (G, g, _, o) = params

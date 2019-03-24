@@ -90,7 +90,14 @@ def credential_EncryptUserSecret(params, pub, priv):
     #                     b = k * pub + v * g and 
     #                     pub = priv * g}
 
-    ## TODO
+    wk,wv,wpriv = o.random(),o.random(),o.random()
+
+    Wa,Wb,Wpriv = wk*g, wk*pub + wv*g, wpriv*g
+
+    c = to_challenge([g,pub,a,b,Wa,Wb,Wpriv])
+
+    rk,rv,rpriv = wk - c*k, wv - c*v, wpriv - c*priv
+    
 
     # Return the fresh v, the encryption of v and the proof.
     proof = (c, rk, rv, rpriv)
@@ -124,6 +131,7 @@ def credential_VerifyUserSecret(params, pub, ciphertext, proof):
 ## IMPRTANT NOTE: Study the section "Issuance" p.8 
 #  of https://eprint.iacr.org/2013/516.pdf
 
+
 def credential_Issuing(params, pub, ciphertext, issuer_params):
     """ A function used by the credential issuer to provide a MAC
         on a secret (encrypted) attribute v """
@@ -142,12 +150,22 @@ def credential_Issuing(params, pub, ciphertext, issuer_params):
     # 2) Create a X1b as X1b == b * X1 == (b * x1) * h
     #     and x1b = (b * x1) mod o 
     
-    # TODO 1 & 2
+    randb = o.random()
+    u = randb*g
+
+    X1b = (randb*x1)*h
+    x1b = (randb*x1) % o
 
     # 3) The encrypted MAC is u, and an encrypted u_prime defined as 
     #    E( (b*x0) * g + (x1 * b * v) * g ) + E(0; r_prime)
+     # ciphertext b = k * g*x1 + v * g
     
-    # TODO 3
+    #u_prime =  (randb*x0)*g+(x1*randb*v)*g
+    #k = o.random()
+    r_prime = o.random()
+
+    new_a = r_prime * g + x1b * a
+    new_b = r_prime * pub + x1b * b + x0 * u 
 
     ciphertext = new_a, new_b
 
@@ -161,9 +179,25 @@ def credential_Issuing(params, pub, ciphertext, issuer_params):
     #       new_b = r_prime * pub + x1b * b + x0 * u 
     #       Cx0 = x0 * g + x0_bar * h }
 
-    ## TODO proof
+    wx1,wrandb,wx1b,wrprime,wx0,wx0_bar = o.random(),o.random(),o.random(),o.random(),o.random(),o.random() 						#randoms
+  
+    c = to_challenge([g,h,pub,a,b,X1,X1b,new_a,new_b,Cx0, 
+	wx1*h, wrandb*X1,
+	wx1b*h, wrandb*g, 
+	wrprime*g + wx1b*a,
+	wrprime*pub + wx1b*b + wx0*u,
+	wx0*g + wx0_bar*h])
 
-    proof = (c, rs, X1b) # Where rs are multiple responses
+    rs = [					#respsonses
+	wx1 - c*x1,
+	wrandb - c*randb,
+	wx1b - c*x1b,
+	wrprime - c*r_prime,
+	wx0 - c*x0,
+	wx0_bar - c*x0_bar
+	]
+   
+    proof = (c, rs, X1b)
 
     return u, ciphertext, proof
 
@@ -226,22 +260,28 @@ def credential_show(params, issuer_pub_params, u, u_prime, v):
     #    using (alpha * u, alpha * u_prime) for a
     #    random alpha.
     
-    # TODO 1
+    alpha = o.random()
+    u_blind, u_prime_blind = alpha*u, alpha*u_prime
 
     # 2) Implement the "Show" protocol (p.9) for a single attribute v.
     #    Cv is a commitment to v and Cup is C_{u'} in the paper. 
 
-    # TODO 2
+    z1, r = o.random(), o.random()
+    Cv = v*u_blind + z1*h
+    Cup = u_prime_blind + r*g
 
-    tag = (u, Cv, Cup)
+    
+    tag = (u_blind, Cv, Cup)
 
     # Proof or knowledge of the statement
-    #
-    # NIZK{(r, z1,v): 
-    #           Cv = v *u + z1 * h and
-    #           V  = r * (-g) + z1 * X1 }
 
-    ## TODO proof
+    wr, wz1, wv = o.random(), o.random(), o.random()	#randoms
+
+    c = to_challenge([g, h, X1, Cx0,
+   	wv*u_blind + wz1*h,
+ 	wr*(-g) + wz1*X1]) 
+
+    rr, rz1, rv = wr - c*r, wz1 - c*z1, wv - c*v	#responses
 
     proof = (c, rr, rz1, rv)
     return tag, proof
@@ -260,7 +300,9 @@ def credential_show_verify(params, issuer_params, tag, proof):
     (c, rr, rz1, rv) = proof
     (u, Cv, Cup) = tag
 
-    ## TODO
+    c_prime = to_challenge([g, h, X1, Cx0,
+   	rv*u + rz1*h + c*Cv,
+ 	rr*(-g) + rz1*X1 + c*((x0*u + x1*Cv) - Cup)]) 
 
     return c == c_prime
 
@@ -284,7 +326,30 @@ def credential_show_pseudonym(params, issuer_pub_params, u, u_prime, v, service_
     N = G.hash_to_point(service_name)
     pseudonym = v * N
 
-    ## TODO (use code from above and modify as necessary!)
+    # blind u,u'
+    alpha = o.random()
+    u_blind, u_prime_blind = alpha*u, alpha*u_prime
+
+    # Show()
+    z1, r = o.random(), o.random()
+    Cv = v*u_blind + z1*h
+    Cup = u_prime_blind + r*g
+
+    
+    tag = (u_blind, Cv, Cup)
+
+    # Proof or knowledge of the statement
+
+    wr, wz1, wv = o.random(), o.random(), o.random()	#randoms
+
+    c = to_challenge([g, h, X1, Cx0,
+   	wv*N,
+   	wv*u_blind + wz1*h,
+ 	wr*(-g) + wz1*X1]) 
+
+    rr, rz1, rv = wr - c*r, wz1 - c*z1, wv - c*v	#responses
+
+    proof = (c, rr, rz1, rv)    
 
     return pseudonym, tag, proof
 
@@ -302,9 +367,14 @@ def credential_show_verify_pseudonym(params, issuer_params, pseudonym, tag, proo
     ## The EC point corresponding to the service
     N = G.hash_to_point(service_name)
 
-    ## Verify the correct Show protocol and the correctness of the pseudonym
+    # Verify proof of correct credential showing
+    (c, rr, rz1, rv) = proof
+    (u, Cv, Cup) = tag
 
-    # TODO (use code from above and modify as necessary!)
+    c_prime = to_challenge([g, h, X1, Cx0,
+        rv*N + c*pseudonym,
+   	rv*u + rz1*h + c*Cv,
+ 	rr*(-g) + rz1*X1 + c*((x0*u + x1*Cv) - Cup)]) 
 
     return c == c_prime
 
@@ -317,4 +387,31 @@ def credential_show_verify_pseudonym(params, issuer_params, pseudonym, tag, proo
 # What would the credential represent, and what statements
 # would need to be shown to a verifier.
 
-""" Your answer here. """
+"""
+
+	Using the unspent transaction input (UTXO) model found in E-cash schemes such as Bitcoin, money can be sent to and from addresses (pseudonyms) which can be proven to be owned by users with knowledge of their secret value v. 
+
+	A central authority is required to maintain a UTXO set, issue credentials to users, process transactions and optionally could store a ledger of transactions to save the history of the system.  
+
+	A new transaction would include:
+		- For each input a proof of knowledge of v corresponding to some address in the UTXO set
+		- output addresses and encrypted amounts being sent to each
+		- range proofs proving the amounts being sent are positive
+		- any scirpting or extra data fields
+	
+	Each transaction would be verified and processed by the central authority ensuring:
+		- The proof of knowledge of v for the input UTXO addresses is valid
+		- The UTXO havent already been spent (perhaps by simply removing them from the UTXO set once claimed)
+		- sum of inputs = sum of ouptpus (via homomorphic property of Benaloh encryption)
+		- Range proofs are valid
+		- The ledger of transaction history is updated
+		- outputs are added to the UTXO set
+
+	 
+	Integrity is acheived by either removing UTXOs from the UTXO set once spent and/or checking the ledger each time for past spends of the UTXO being claimed. 
+
+	Since pseudonyms are unlinkable and verification of credentials is done in zero-knowledge, privacy is achieved because users can use many different addresses for each transaction and within each transaction. For example each time the CEO of a large social media platform wishes to be paid by a British analytics firm in secret they can generate a new pseudonym for each payment, and when spending can generate new pseudonyms for their change addresses.  
+"""
+
+
+
